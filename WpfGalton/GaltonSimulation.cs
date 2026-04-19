@@ -27,7 +27,7 @@ internal sealed class GaltonSimulation
     private int _rows;
     private double _horizontalSpacing;
     private double _gravity = 980;
-    private double _restitutionPeg = 0.82;
+    private double _restitutionPeg = 0.48;
     private double _restitutionBall = 0.92;
     private double _restitutionWall = 0.75;
 
@@ -165,8 +165,8 @@ internal sealed class GaltonSimulation
         {
             X = x,
             Y = y,
-            Vx = (_rng.NextDouble() - 0.5) * 40,
-            Vy = _rng.NextDouble() * 20,
+            Vx = (_rng.NextDouble() - 0.5) * 14,
+            Vy = _rng.NextDouble() * 14,
             Radius = marbleRadius,
             Color = color,
         });
@@ -178,7 +178,7 @@ internal sealed class GaltonSimulation
         if (_width < 200)
             return;
 
-        const int substeps = 5;
+        const int substeps = 6;
         var h = dt / substeps;
         for (var s = 0; s < substeps; s++)
             SubStep(h);
@@ -199,8 +199,7 @@ internal sealed class GaltonSimulation
 
         foreach (var m in _marbles)
         {
-            foreach (var peg in _pegs)
-                ResolveCircle(m, peg.X, peg.Y, _pegRadius, _restitutionPeg, addTangentialNoise: true);
+            ResolvePegCollisions(m);
 
             foreach (var seg in _segments)
                 ResolveSegment(m, seg.A, seg.B, _restitutionWall, IsFloorSegment(seg.A, seg.B));
@@ -227,6 +226,59 @@ internal sealed class GaltonSimulation
                 m.Vy = 0;
             }
         }
+
+        const double maxSpeed = 720;
+        foreach (var m in _marbles)
+        {
+            var sp = Math.Sqrt(m.Vx * m.Vx + m.Vy * m.Vy);
+            if (sp > maxSpeed)
+            {
+                var s = maxSpeed / sp;
+                m.Vx *= s;
+                m.Vy *= s;
+            }
+        }
+    }
+
+    private void ResolvePegCollisions(Marble m)
+    {
+        const int maxIters = 14;
+        for (var iter = 0; iter < maxIters; iter++)
+        {
+            if (!TryResolveDeepestPeg(m))
+                break;
+        }
+    }
+
+    private bool TryResolveDeepestPeg(Marble m)
+    {
+        var bestPen = 0.0;
+        Vec2 best = default;
+        var minD = m.Radius + _pegRadius;
+        var minDSq = minD * minD;
+
+        foreach (var peg in _pegs)
+        {
+            var dx = m.X - peg.X;
+            var dy = m.Y - peg.Y;
+            var distSq = dx * dx + dy * dy;
+            if (distSq >= minDSq || distSq < 1e-10)
+                continue;
+
+            var dist = Math.Sqrt(distSq);
+            var pen = minD - dist;
+            if (pen > bestPen)
+            {
+                bestPen = pen;
+                best = peg;
+            }
+        }
+
+        if (bestPen <= 0)
+            return false;
+
+        ResolveCircle(m, best.X, best.Y, _pegRadius, _restitutionPeg, pegTangentDamp: 0.88);
+        return true;
     }
 
     private void ResolveMarblePair(Marble a, Marble b)
@@ -263,7 +315,7 @@ internal sealed class GaltonSimulation
         b.Vy += impulse * ny;
     }
 
-    private void ResolveCircle(Marble m, double cx, double cy, double radius, double restitution, bool addTangentialNoise)
+    private void ResolveCircle(Marble m, double cx, double cy, double radius, double restitution, double? pegTangentDamp = null)
     {
         var dx = m.X - cx;
         var dy = m.Y - cy;
@@ -286,13 +338,13 @@ internal sealed class GaltonSimulation
         m.Vx -= (1 + restitution) * vn * nx;
         m.Vy -= (1 + restitution) * vn * ny;
 
-        if (addTangentialNoise)
+        if (pegTangentDamp is { } damp && damp > 0)
         {
-            var tx = -ny;
-            var ty = nx;
-            var jitter = (_rng.NextDouble() - 0.5) * 55;
-            m.Vx += tx * jitter;
-            m.Vy += ty * jitter;
+            var vDotN = m.Vx * nx + m.Vy * ny;
+            var tx = m.Vx - vDotN * nx;
+            var ty = m.Vy - vDotN * ny;
+            m.Vx = vDotN * nx + tx * damp;
+            m.Vy = vDotN * ny + ty * damp;
         }
     }
 
