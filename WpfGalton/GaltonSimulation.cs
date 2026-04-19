@@ -4,6 +4,8 @@ namespace WpfGalton;
 
 internal readonly record struct Vec2(double X, double Y);
 
+internal readonly record struct LayoutWall(Vec2 A, Vec2 B, double Restitution, bool IsFloor);
+
 internal sealed class Marble
 {
     public double X, Y, Vx, Vy;
@@ -15,7 +17,8 @@ internal sealed class GaltonSimulation
 {
     private readonly List<Marble> _marbles = new();
     private readonly List<Vec2> _pegs = new();
-    private readonly List<(Vec2 A, Vec2 B)> _segments = new();
+    private readonly List<LayoutWall> _walls = new();
+    private readonly List<(Vec2 A, Vec2 B)> _segmentDraw = new();
     private readonly Random _rng = new();
 
     private double _width;
@@ -30,6 +33,7 @@ internal sealed class GaltonSimulation
     private double _restitutionPeg = 0.48;
     private double _restitutionBall = 0.92;
     private double _restitutionWall = 0.75;
+    private double _bumperRestitution = 0.9;
 
     private static readonly Color[] Palette =
     [
@@ -49,7 +53,7 @@ internal sealed class GaltonSimulation
 
     public IReadOnlyList<Marble> Marbles => _marbles;
     public IReadOnlyList<Vec2> Pegs => _pegs;
-    public IReadOnlyList<(Vec2 A, Vec2 B)> Segments => _segments;
+    public IReadOnlyList<(Vec2 A, Vec2 B)> Segments => _segmentDraw;
     public double PegRadius => _pegRadius;
 
     public void Resize(double width, double height)
@@ -58,7 +62,8 @@ internal sealed class GaltonSimulation
         _height = height;
 
         _pegs.Clear();
-        _segments.Clear();
+        _walls.Clear();
+        _segmentDraw.Clear();
 
         if (width < 200 || height < 200)
             return;
@@ -102,32 +107,73 @@ internal sealed class GaltonSimulation
         var binRight = centerX + binHalfSpan;
         var binWidth = (binRight - binLeft) / numBins;
 
-        AddSegment(new Vec2(centerX - funnelTopHalfWidth, funnelTopY), new Vec2(centerX - funnelBottomHalfWidth, funnelBottomY));
-        AddSegment(new Vec2(centerX + funnelTopHalfWidth, funnelTopY), new Vec2(centerX + funnelBottomHalfWidth, funnelBottomY));
+        AddWall(
+            new Vec2(centerX - funnelTopHalfWidth, funnelTopY),
+            new Vec2(centerX - funnelBottomHalfWidth, funnelBottomY),
+            _restitutionWall,
+            false);
+        AddWall(
+            new Vec2(centerX + funnelTopHalfWidth, funnelTopY),
+            new Vec2(centerX + funnelBottomHalfWidth, funnelBottomY),
+            _restitutionWall,
+            false);
 
-        var bottomRow = _rows - 1;
-        var outerHalfSpan = bottomRow * (_horizontalSpacing * 0.5);
-        var triangleWallPad = Math.Max(18, _horizontalSpacing * 0.42);
-        var pegFootLeftX = centerX - outerHalfSpan - _pegRadius;
-        var pegFootRightX = centerX + outerHalfSpan + _pegRadius;
-        var binWallMargin = Math.Max(10, _horizontalSpacing * 0.22);
-        var leftWallX = Math.Min(pegFootLeftX - triangleWallPad, binLeft - binWallMargin);
-        var rightWallX = Math.Max(pegFootRightX + triangleWallPad, binRight + binWallMargin);
+        var rowDy = _horizontalSpacing * 0.92;
+        var lastR = _rows - 1;
+        var w = _horizontalSpacing;
+        var yBumperTop = funnelBottomY - 4;
+        var yBumperBot = _floorY;
+        var clearance = _pegRadius + Math.Max(11, w * 0.28);
 
-        AddSegment(new Vec2(leftWallX, funnelBottomY), new Vec2(leftWallX, _floorY));
-        AddSegment(new Vec2(rightWallX, funnelBottomY), new Vec2(rightWallX, _floorY));
+        if (lastR >= 1 && Math.Abs(lastR * rowDy) > 1e-6)
+        {
+            var vxl = -lastR * w * 0.5;
+            var vyl = lastR * rowDy;
+            var lenL = Math.Sqrt(vxl * vxl + vyl * vyl);
+            var uxl = vxl / lenL;
+            var uyl = vyl / lenL;
+            var nlx = -uyl;
+            var nly = uxl;
+            var ax = centerX + nlx * clearance;
+            var ay = pegStartY + nly * clearance;
+            if (Math.Abs(uyl) > 1e-5)
+            {
+                var topX = ax + uxl * ((yBumperTop - ay) / uyl);
+                var botX = ax + uxl * ((yBumperBot - ay) / uyl);
+                AddWall(new Vec2(topX, yBumperTop), new Vec2(botX, yBumperBot), _bumperRestitution, false);
+            }
+
+            var vxr = lastR * w * 0.5;
+            var vyr = lastR * rowDy;
+            var lenR = Math.Sqrt(vxr * vxr + vyr * vyr);
+            var uxr = vxr / lenR;
+            var uyr = vyr / lenR;
+            var nrx = uyr;
+            var nry = -uxr;
+            var arx = centerX + nrx * clearance;
+            var ary = pegStartY + nry * clearance;
+            if (Math.Abs(uyr) > 1e-5)
+            {
+                var topRx = arx + uxr * ((yBumperTop - ary) / uyr);
+                var botRx = arx + uxr * ((yBumperBot - ary) / uyr);
+                AddWall(new Vec2(topRx, yBumperTop), new Vec2(botRx, yBumperBot), _bumperRestitution, false);
+            }
+        }
 
         var funnelGuardInset = Math.Clamp(marginX * 0.35, 10, 36);
-        AddSegment(new Vec2(funnelGuardInset, 0), new Vec2(funnelGuardInset, funnelTopY + 40));
-        AddSegment(new Vec2(width - funnelGuardInset, 0), new Vec2(width - funnelGuardInset, funnelTopY + 40));
+        AddWall(new Vec2(funnelGuardInset, 0), new Vec2(funnelGuardInset, funnelTopY + 40), _restitutionWall, false);
+        AddWall(new Vec2(width - funnelGuardInset, 0), new Vec2(width - funnelGuardInset, funnelTopY + 40), _restitutionWall, false);
+
+        AddWall(new Vec2(binLeft, binTopY), new Vec2(binLeft, _floorY), _restitutionWall, false);
+        AddWall(new Vec2(binRight, binTopY), new Vec2(binRight, _floorY), _restitutionWall, false);
 
         for (var i = 1; i < numBins; i++)
         {
             var x = binLeft + i * binWidth;
-            AddSegment(new Vec2(x, binTopY), new Vec2(x, _floorY));
+            AddWall(new Vec2(x, binTopY), new Vec2(x, _floorY), _restitutionWall, false);
         }
 
-        AddSegment(new Vec2(binLeft, _floorY), new Vec2(binRight, _floorY));
+        AddWall(new Vec2(binLeft, _floorY), new Vec2(binRight, _floorY), _restitutionWall, true);
 
         foreach (var m in _marbles)
         {
@@ -136,9 +182,11 @@ internal sealed class GaltonSimulation
         }
     }
 
-    private static bool IsFloorSegment(Vec2 a, Vec2 b) => Math.Abs(a.Y - b.Y) < 1e-3;
-
-    private void AddSegment(Vec2 a, Vec2 b) => _segments.Add((a, b));
+    private void AddWall(Vec2 a, Vec2 b, double restitution, bool isFloor)
+    {
+        _walls.Add(new LayoutWall(a, b, restitution, isFloor));
+        _segmentDraw.Add((a, b));
+    }
 
     public void ClearMarbles() => _marbles.Clear();
 
@@ -201,8 +249,8 @@ internal sealed class GaltonSimulation
         {
             ResolvePegCollisions(m);
 
-            foreach (var seg in _segments)
-                ResolveSegment(m, seg.A, seg.B, _restitutionWall, IsFloorSegment(seg.A, seg.B));
+            foreach (var wall in _walls)
+                ResolveSegment(m, wall.A, wall.B, wall.Restitution, wall.IsFloor);
         }
 
         for (var i = 0; i < _marbles.Count; i++)
