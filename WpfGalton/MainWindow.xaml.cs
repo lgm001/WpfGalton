@@ -31,7 +31,7 @@ public partial class MainWindow : Window
     {
         RebuildScene();
 
-        _spawnTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(95) };
+        _spawnTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(155) };
         _spawnTimer.Tick += (_, _) => TrySpawn();
         _spawnTimer.Start();
 
@@ -76,8 +76,8 @@ public partial class MainWindow : Window
         Board.Children.Clear();
         _marbleShapes.Clear();
 
-        _world.Resize(ActualWidth, ActualHeight);
         _marbleRadius = Math.Clamp(Math.Min(ActualWidth, ActualHeight) * 0.009, 5.5, 11);
+        _world.Resize(ActualWidth, ActualHeight, _marbleRadius);
 
         foreach (var peg in _world.Pegs)
         {

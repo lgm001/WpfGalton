@@ -27,6 +27,10 @@ internal sealed class GaltonSimulation
     private double _floorY;
     private double _spawnY;
     private double _spawnHalfWidth;
+    private double _firstPegY;
+    private double _neckZoneTop;
+    private double _neckZoneBottom;
+    private double _neckColumnHalfWidth;
     private int _rows;
     private double _horizontalSpacing;
     private double _gravity = 980;
@@ -56,7 +60,7 @@ internal sealed class GaltonSimulation
     public IReadOnlyList<(Vec2 A, Vec2 B)> Segments => _segmentDraw;
     public double PegRadius => _pegRadius;
 
-    public void Resize(double width, double height)
+    public void Resize(double width, double height, double? marbleRadius = null)
     {
         _width = width;
         _height = height;
@@ -78,16 +82,27 @@ internal sealed class GaltonSimulation
         var funnelTopHalfWidth = Math.Min(width * 0.22, 220);
         var funnelBottomHalfWidth = Math.Min(width * 0.045, 48);
 
-        _spawnY = funnelBottomY + 22;
-        _spawnHalfWidth = funnelBottomHalfWidth * 0.55;
-
         _floorY = height - floorMargin;
 
         _horizontalSpacing = Math.Clamp(width / 28.0, 26, 44);
         _rows = (int)Math.Clamp((funnelBottomY + height * 0.62 - funnelBottomY) / 36.0, 10, 16);
         _pegRadius = Math.Clamp(_horizontalSpacing * 0.11, 3.2, 5.5);
 
-        var pegStartY = funnelBottomY + height * 0.03;
+        var tipRadius = marbleRadius is > 0 and <= 40
+            ? marbleRadius.Value
+            : Math.Clamp(Math.Min(width, height) * 0.009, 5.5, 11);
+
+        _firstPegY = funnelBottomY + height * 0.03;
+        const double gapAboveFirstPinSurface = 12.0;
+        var releaseBelowFunnel = _firstPegY - _pegRadius - tipRadius - gapAboveFirstPinSurface;
+        var funnelThroatY = funnelBottomY - 5;
+        _spawnY = Math.Min(funnelThroatY, releaseBelowFunnel);
+        _spawnHalfWidth = funnelBottomHalfWidth * 0.32;
+        _neckColumnHalfWidth = funnelBottomHalfWidth * 0.52;
+        _neckZoneTop = _spawnY - tipRadius - 8;
+        _neckZoneBottom = _firstPegY + _pegRadius + tipRadius + 18;
+
+        var pegStartY = _firstPegY;
         for (var r = 0; r < _rows; r++)
         {
             for (var k = 0; k <= r; k++)
@@ -198,6 +213,11 @@ internal sealed class GaltonSimulation
 
         foreach (var other in _marbles)
         {
+            if (other.Y >= _neckZoneTop && other.Y <= _neckZoneBottom &&
+                Math.Abs(other.X - centerX) <
+                _neckColumnHalfWidth + other.Radius + marbleRadius + 0.5)
+                return false;
+
             var dx = x - other.X;
             var dy = y - other.Y;
             var minDist = marbleRadius + other.Radius;
@@ -210,8 +230,8 @@ internal sealed class GaltonSimulation
         {
             X = x,
             Y = y,
-            Vx = (_rng.NextDouble() - 0.5) * 14,
-            Vy = _rng.NextDouble() * 14,
+            Vx = (_rng.NextDouble() - 0.5) * 8,
+            Vy = 4 + _rng.NextDouble() * 22,
             Radius = marbleRadius,
             Color = color,
         });
