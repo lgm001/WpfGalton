@@ -16,6 +16,11 @@ public partial class MainWindow : Window
     private bool _renderingHooked;
     private double _marbleRadius = 8;
     private const int MaxMarbles = 160;
+    private const double SettledDebounceSeconds = 0.85;
+    private const double PostRacePauseSeconds = 15.0;
+    private double _settledStreak;
+    private bool _inPostRacePause;
+    private double _postRacePauseElapsed;
 
     public MainWindow()
     {
@@ -49,6 +54,11 @@ public partial class MainWindow : Window
     {
         if (!IsLoaded || e.NewSize.Width < 100 || e.NewSize.Height < 100)
             return;
+
+        _inPostRacePause = false;
+        _postRacePauseElapsed = 0;
+        _settledStreak = 0;
+        _spawnTimer?.Start();
 
         ClearMarbleVisuals();
         _world.ClearMarbles();
@@ -160,6 +170,8 @@ public partial class MainWindow : Window
 
         _world.Update(dt);
 
+        UpdateRoundLifecycle(dt);
+
         var marbles = _world.Marbles;
         for (var i = 0; i < marbles.Count && i < _marbleShapes.Count; i++)
         {
@@ -184,5 +196,36 @@ public partial class MainWindow : Window
         foreach (var el in _marbleShapes)
             Board.Children.Remove(el);
         _marbleShapes.Clear();
+    }
+
+    private void UpdateRoundLifecycle(double dt)
+    {
+        if (_inPostRacePause)
+        {
+            _postRacePauseElapsed += dt;
+            if (_postRacePauseElapsed < PostRacePauseSeconds)
+                return;
+
+            ClearMarbleVisuals();
+            _world.ClearMarbles();
+            _inPostRacePause = false;
+            _postRacePauseElapsed = 0;
+            _settledStreak = 0;
+            _spawnTimer?.Start();
+            return;
+        }
+
+        if (_world.IsRoundSettled(MaxMarbles))
+            _settledStreak += dt;
+        else
+            _settledStreak = 0;
+
+        if (_settledStreak < SettledDebounceSeconds)
+            return;
+
+        _inPostRacePause = true;
+        _postRacePauseElapsed = 0;
+        _settledStreak = 0;
+        _spawnTimer?.Stop();
     }
 }

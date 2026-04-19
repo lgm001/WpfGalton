@@ -168,6 +168,25 @@ internal sealed class GaltonSimulation
 
     public void ClearMarbles() => _marbles.Clear();
 
+    /// <summary>
+    /// True when the board has exactly <paramref name="expectedMarbleCount"/> marbles and each
+    /// is moving slowly enough to treat the drop as finished.
+    /// </summary>
+    public bool IsRoundSettled(int expectedMarbleCount, double speedSqThreshold = 1900)
+    {
+        if (_marbles.Count != expectedMarbleCount || expectedMarbleCount == 0)
+            return false;
+
+        foreach (var m in _marbles)
+        {
+            var s = m.Vx * m.Vx + m.Vy * m.Vy;
+            if (s > speedSqThreshold)
+                return false;
+        }
+
+        return true;
+    }
+
     public bool TrySpawnMarble(double marbleRadius, int maxMarbles)
     {
         if (_width < 200 || _marbles.Count >= maxMarbles)
