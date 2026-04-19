@@ -69,12 +69,12 @@ internal sealed class GaltonSimulation
             return;
 
         var marginX = width * 0.04;
-        var marginTop = height * 0.05;
-        var floorMargin = height * 0.06;
+        var marginTop = height * 0.022;
+        var floorMargin = height * 0.052;
 
         var centerX = width * 0.5;
-        var funnelTopY = marginTop + 20;
-        var funnelBottomY = marginTop + height * 0.14;
+        var funnelTopY = marginTop + 14;
+        var funnelBottomY = marginTop + height * 0.115;
         var funnelTopHalfWidth = Math.Min(width * 0.22, 220);
         var funnelBottomHalfWidth = Math.Min(width * 0.045, 48);
 
@@ -87,7 +87,7 @@ internal sealed class GaltonSimulation
         _rows = (int)Math.Clamp((funnelBottomY + height * 0.62 - funnelBottomY) / 36.0, 10, 16);
         _pegRadius = Math.Clamp(_horizontalSpacing * 0.11, 3.2, 5.5);
 
-        var pegStartY = funnelBottomY + height * 0.05;
+        var pegStartY = funnelBottomY + height * 0.03;
         for (var r = 0; r < _rows; r++)
         {
             for (var k = 0; k <= r; k++)
@@ -99,7 +99,8 @@ internal sealed class GaltonSimulation
         }
 
         var lastPegY = pegStartY + (_rows - 1) * (_horizontalSpacing * 0.92);
-        var binTopY = lastPegY + _horizontalSpacing * 0.75;
+        // Top of bin dividers ("comb"): just below last peg row so teeth are long; was ~0.75·spacing gap.
+        var binTopY = lastPegY + _pegRadius + _horizontalSpacing * 0.34;
 
         var numBins = _rows + 1;
         var binHalfSpan = (_rows * 0.5) * _horizontalSpacing + _horizontalSpacing * 0.55;
