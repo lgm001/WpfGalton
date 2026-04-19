@@ -96,18 +96,30 @@ internal sealed class GaltonSimulation
         var lastPegY = pegStartY + (_rows - 1) * (_horizontalSpacing * 0.92);
         var binTopY = lastPegY + _horizontalSpacing * 0.75;
 
-        AddSegment(new Vec2(centerX - funnelTopHalfWidth, funnelTopY), new Vec2(centerX - funnelBottomHalfWidth, funnelBottomY));
-        AddSegment(new Vec2(centerX + funnelTopHalfWidth, funnelTopY), new Vec2(centerX + funnelBottomHalfWidth, funnelBottomY));
-
-        var wallInset = marginX * 0.5;
-        AddSegment(new Vec2(wallInset, 0), new Vec2(wallInset, _floorY));
-        AddSegment(new Vec2(width - wallInset, 0), new Vec2(width - wallInset, _floorY));
-
         var numBins = _rows + 1;
         var binHalfSpan = (_rows * 0.5) * _horizontalSpacing + _horizontalSpacing * 0.55;
         var binLeft = centerX - binHalfSpan;
         var binRight = centerX + binHalfSpan;
         var binWidth = (binRight - binLeft) / numBins;
+
+        AddSegment(new Vec2(centerX - funnelTopHalfWidth, funnelTopY), new Vec2(centerX - funnelBottomHalfWidth, funnelBottomY));
+        AddSegment(new Vec2(centerX + funnelTopHalfWidth, funnelTopY), new Vec2(centerX + funnelBottomHalfWidth, funnelBottomY));
+
+        var bottomRow = _rows - 1;
+        var outerHalfSpan = bottomRow * (_horizontalSpacing * 0.5);
+        var triangleWallPad = Math.Max(18, _horizontalSpacing * 0.42);
+        var pegFootLeftX = centerX - outerHalfSpan - _pegRadius;
+        var pegFootRightX = centerX + outerHalfSpan + _pegRadius;
+        var binWallMargin = Math.Max(10, _horizontalSpacing * 0.22);
+        var leftWallX = Math.Min(pegFootLeftX - triangleWallPad, binLeft - binWallMargin);
+        var rightWallX = Math.Max(pegFootRightX + triangleWallPad, binRight + binWallMargin);
+
+        AddSegment(new Vec2(leftWallX, funnelBottomY), new Vec2(leftWallX, _floorY));
+        AddSegment(new Vec2(rightWallX, funnelBottomY), new Vec2(rightWallX, _floorY));
+
+        var funnelGuardInset = Math.Clamp(marginX * 0.35, 10, 36);
+        AddSegment(new Vec2(funnelGuardInset, 0), new Vec2(funnelGuardInset, funnelTopY + 40));
+        AddSegment(new Vec2(width - funnelGuardInset, 0), new Vec2(width - funnelGuardInset, funnelTopY + 40));
 
         for (var i = 1; i < numBins; i++)
         {
