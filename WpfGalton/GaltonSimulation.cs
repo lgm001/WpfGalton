@@ -78,7 +78,7 @@ internal sealed class GaltonSimulation
         var funnelTopHalfWidth = Math.Min(width * 0.22, 220);
         var funnelBottomHalfWidth = Math.Min(width * 0.045, 48);
 
-        _spawnY = funnelBottomY + 8;
+        _spawnY = funnelBottomY + 22;
         _spawnHalfWidth = funnelBottomHalfWidth * 0.55;
 
         _floorY = height - floorMargin;
@@ -118,47 +118,24 @@ internal sealed class GaltonSimulation
             _restitutionWall,
             false);
 
-        var rowDy = _horizontalSpacing * 0.92;
-        var lastR = _rows - 1;
-        var w = _horizontalSpacing;
-        var yBumperTop = funnelBottomY - 4;
-        var yBumperBot = _floorY;
-        var clearance = _pegRadius + Math.Max(11, w * 0.28);
+        // Bumpers: physical boards run from the funnel mouth (narrow) down to the outer bin
+        // corners (wide), outside the peg triangle — not peg-centroid offset lines (those can
+        // cross the funnel or sit wrong and look like an "X"). Anchor to funnel + bin geometry.
+        var funnelLipOut = Math.Max(3, funnelBottomHalfWidth * 0.06);
+        var funnelMouthLeftX = centerX - funnelBottomHalfWidth - funnelLipOut;
+        var funnelMouthRightX = centerX + funnelBottomHalfWidth + funnelLipOut;
+        var bumperJoinY = binTopY;
 
-        if (lastR >= 1 && Math.Abs(lastR * rowDy) > 1e-6)
-        {
-            var vxl = -lastR * w * 0.5;
-            var vyl = lastR * rowDy;
-            var lenL = Math.Sqrt(vxl * vxl + vyl * vyl);
-            var uxl = vxl / lenL;
-            var uyl = vyl / lenL;
-            var nlx = -uyl;
-            var nly = uxl;
-            var ax = centerX + nlx * clearance;
-            var ay = pegStartY + nly * clearance;
-            if (Math.Abs(uyl) > 1e-5)
-            {
-                var topX = ax + uxl * ((yBumperTop - ay) / uyl);
-                var botX = ax + uxl * ((yBumperBot - ay) / uyl);
-                AddWall(new Vec2(topX, yBumperTop), new Vec2(botX, yBumperBot), _bumperRestitution, false);
-            }
-
-            var vxr = lastR * w * 0.5;
-            var vyr = lastR * rowDy;
-            var lenR = Math.Sqrt(vxr * vxr + vyr * vyr);
-            var uxr = vxr / lenR;
-            var uyr = vyr / lenR;
-            var nrx = uyr;
-            var nry = -uxr;
-            var arx = centerX + nrx * clearance;
-            var ary = pegStartY + nry * clearance;
-            if (Math.Abs(uyr) > 1e-5)
-            {
-                var topRx = arx + uxr * ((yBumperTop - ary) / uyr);
-                var botRx = arx + uxr * ((yBumperBot - ary) / uyr);
-                AddWall(new Vec2(topRx, yBumperTop), new Vec2(botRx, yBumperBot), _bumperRestitution, false);
-            }
-        }
+        AddWall(
+            new Vec2(funnelMouthLeftX, funnelBottomY),
+            new Vec2(binLeft, bumperJoinY),
+            _bumperRestitution,
+            false);
+        AddWall(
+            new Vec2(funnelMouthRightX, funnelBottomY),
+            new Vec2(binRight, bumperJoinY),
+            _bumperRestitution,
+            false);
 
         var funnelGuardInset = Math.Clamp(marginX * 0.35, 10, 36);
         AddWall(new Vec2(funnelGuardInset, 0), new Vec2(funnelGuardInset, funnelTopY + 40), _restitutionWall, false);
